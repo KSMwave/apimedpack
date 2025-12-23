@@ -8,7 +8,7 @@ app.use(express.json());
 const db = new Firestore();
 const client = new OAuth2Client();
 // ตรวจสอบว่า CLIENT_ID ตรงกับใน WinForms
-const CLIENT_ID = '887088631874-7hg3ne9bsgnfurtdd8eamb7tnq339lpa.apps.googleusercontent.com';
+const CLIENT_ID = '887088631874-ld8c3idr9qcmts2cllus42d8gt8dkr8d.apps.googleusercontent.com';
 
 app.get('/status', async (req, res) => {
   try {
