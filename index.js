@@ -21,38 +21,51 @@ app.get('/status', async (req, res) => {
 
     const idToken = authHeader.split(' ')[1];
 
-    // 1. ตรวจสอบ Token กับ Google
+    // 1. ตรวจสอบ Token
     const ticket = await client.verifyIdToken({
         idToken: idToken,
         audience: CLIENT_ID,
     });
     const payload = ticket.getPayload();
-    const email = payload['email'];
+    
+    // ดึงอีเมลออกมา และจัดการลบช่องว่าง/ทำเป็นตัวพิมพ์เล็ก
+    const emailFromToken = payload['email'].toLowerCase().trim();
 
-    // 2. ดึงข้อมูลจากตาราง users ใน database 'meddb'
-    const userDoc = await db.collection('users').doc(email).get();
+    // --- ส่วนที่เพิ่มเข้ามาเพื่อตรวจสอบ (Console Log) ---
+    console.log("--- DEBUG LOGIN ---");
+    console.log("Email from Google Token:", `"${emailFromToken}"`);
+    console.log("Searching in Database: meddb, Collection: users");
+    // ----------------------------------------------
+
+    // 2. ดึงข้อมูลจาก Firestore โดยระบุ databaseId
+    const userDoc = await db.collection('users').doc(emailFromToken).get();
 
     if (!userDoc.exists) {
-      // แจ้งชัดเจนว่าหาอีเมลนี้ไม่เจอใน Firestore
-      return res.status(403).json({ error: `อีเมล ${email} ไม่มีสิทธิ์ใช้งาน (ไม่พบใน meddb)` });
+      console.error(`[FAIL] ไม่พบอีเมล "${emailFromToken}" ในฐานข้อมูล meddb`);
+      return res.status(403).json({ 
+        error: `ไม่พบอีเมล ${emailFromToken} ในระบบ`,
+        debug_email: emailFromToken 
+      });
     }
 
     const userData = userDoc.data();
+    console.log(`[SUCCESS] พบข้อมูลผู้ใช้: ${userData.name} (${userData.role})`);
+
     res.json({ 
       status: 'OK', 
       name: userData.name, 
       role: userData.role,
-      message: `ยินดีต้อนรับคุณ ${userData.name} (${userData.role})`
+      message: `ยินดีต้อนรับ ${userData.name}`
     });
 
   } catch (error) {
-    // ปรับปรุง: ให้ Log แสดงรายละเอียด Error จริงๆ ใน Console ของ Cloud Run
-    console.error("Detailed Error:", error.message);
-    
-    // ส่ง Error กลับไปที่ WinForms ตามจริง
+    console.error("--- ERROR DETAIL ---");
+    console.error("Message:", error.message);
+    console.error("Code:", error.code); // จะได้เห็นว่ายังเป็นเลข 7 (Permission Denied) อยู่ไหม
     res.status(401).json({ 
       error: 'Authentication Failed', 
-      detail: error.message 
+      detail: error.message,
+      code: error.code 
     });
   }
 });
