@@ -1,29 +1,18 @@
-
 import express from 'express';
 const app = express();
 app.use(express.json());
 
-// ----------------------------------------------------
-// 3. API Endpoints
-// ----------------------------------------------------
-
-
 app.get('/status', (req, res) => {
-  const environment = process.env.NODE_ENV || 'development'; 
+  // ตอบกลับ OK 200 พร้อมข้อมูลที่ WinForms รออ่านอยู่
   res.json({ 
     status: 'OK', 
-    version: '1.0.0',
-    environment: environment
+    name: 'ระบบทดสอบ', 
+    role: 'แอดมิน',
+    message: 'เชื่อมต่อ API สำเร็จแล้ว!' 
   });
 });
 
-
-app.post('/echo', (req, res) => {
-    res.json({ received: req.body });
-});
-
-const PORT = parseInt(process.env.PORT) || 8080; 
-
+const PORT = parseInt(process.env.PORT) || 8080;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
