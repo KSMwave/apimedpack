@@ -15,8 +15,4 @@ app.get('/status', (req, res) => {
 const PORT = parseInt(process.env.PORT) || 8080;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-<<<<<<< HEAD
 });
-=======
-});
->>>>>>> 0b210f5d96b7a96a399a0f1ab56296cfd5396d35
