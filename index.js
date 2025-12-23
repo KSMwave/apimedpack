@@ -7,6 +7,7 @@ app.use(express.json());
 
 // เชื่อมต่อฐานข้อมูลชื่อ meddb ที่คุณสร้างไว้
 const db = new Firestore({
+  projectId: 'bamboo-depth-472206-f1',
   databaseId: 'meddb' 
 });
 
