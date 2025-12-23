@@ -16,7 +16,10 @@ const CLIENT_ID = '887088631874-ld8c3idr9qcmts2cllus42d8gt8dkr8d.apps.googleuser
 app.get('/status', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'No token provided' });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log("Header ผิดพลาด หรือไม่ได้ส่ง Token มา");
+      return res.status(401).json({ error: 'Unauthorized: Missing Token' });
+    }
 
     const idToken = authHeader.split(' ')[1];
 
