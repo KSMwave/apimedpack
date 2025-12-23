@@ -1,11 +1,11 @@
 import express from 'express';
-import { Firestore } from '@google-cloud/firestore'; // <-- ต้องมีอันนี้
+import { Firestore } from '@google-cloud/firestore';
 import { OAuth2Client } from 'google-auth-library';
 
 const app = express();
 app.use(express.json());
 
-// เชื่อมต่อฐานข้อมูล meddb
+// เชื่อมต่อฐานข้อมูลชื่อ meddb ที่คุณสร้างไว้
 const db = new Firestore({
   databaseId: 'meddb' 
 });
@@ -26,23 +26,22 @@ app.get('/status', async (req, res) => {
         audience: CLIENT_ID,
     });
     const payload = ticket.getPayload();
-    const email = payload['email'].toLowerCase().trim(); // ทำเป็นตัวพิมพ์เล็กเพื่อความแม่นยำ
+    const emailFromToken = payload['email'].toLowerCase().trim();
 
-    // 2. ดึงข้อมูลจากตาราง users ใน meddb
-    const userDoc = await db.collection('users').doc(email).get();
+    // 2. ดึงข้อมูลจาก Collection 'users' ใน meddb
+    const userDoc = await db.collection('users').doc(emailFromToken).get();
 
     if (!userDoc.exists) {
-      // ถ้าไม่เจอเมลใน DB ให้ตอบกลับไปบอก WinForms
-      return res.status(403).json({ 
-        error: `ไม่พบอีเมล ${email} ในระบบ meddb`,
-        name: 'Unknown',
-        role: 'None'
+      return res.status(404).json({ 
+        error: 'User not found', 
+        name: 'ไม่มีชื่อในระบบ', 
+        role: 'N/A' 
       });
     }
 
     const userData = userDoc.data();
     
-    // ส่งข้อมูลจริงกลับไปให้ WinForms โชว์
+    // ส่งค่า name และ role กลับไปให้ WinForms
     res.json({ 
       status: 'OK', 
       name: userData.name, 
@@ -57,4 +56,6 @@ app.get('/status', async (req, res) => {
 });
 
 const PORT = parseInt(process.env.PORT) || 8080;
-app.listen(PORT, () => { console.log(`API running on port ${PORT} with meddb`); });
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT} using database meddb`);
+});
