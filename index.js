@@ -12,20 +12,44 @@ const db = new Firestore({
 
 const client = new OAuth2Client();
 const CLIENT_ID = '887088631874-ld8c3idr9qcmts2cllus42d8gt8dkr8d.apps.googleusercontent.com';
-/*-------------------------------
-status role
--------------------------------*/
+
+/**
+ * 1. Endpoint สำหรับ Pre-check Email
+ * ใช้ตรวจสอบก่อนว่าอีเมลมีอยู่ในระบบไหม ก่อนให้ User ไปกดยืนยันในมือถือ
+ */
+app.get('/check-email', async (req, res) => {
+  try {
+    const email = req.query.email;
+    if (!email) {
+      return res.status(400).json({ error: 'Email parameter is required' });
+    }
+
+    const emailSearch = email.toLowerCase().trim();
+    const userDoc = await db.collection('users').doc(emailSearch).get();
+
+    if (userDoc.exists) {
+      return res.json({ allowed: true, message: 'User found' });
+    } else {
+      return res.status(404).json({ allowed: false, error: 'User not registered' });
+    }
+  } catch (error) {
+    console.error("Check Email Error:", error.message);
+    res.status(500).json({ error: 'Database check failed' });
+  }
+});
+
+/**
+ * 2. Endpoint /status เดิม
+ * ตรวจสอบ Token และดึง Role
+ */
 app.get('/status', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log("ไม่มี Token ส่งมาใน Header");
       return res.status(401).json({ error: 'Unauthorized: Missing Token' });
     }
 
     const idToken = authHeader.split(' ')[1];
-
-    // 2. ตรวจสอบ Token กับ Google
     let payload;
     try {
       const ticket = await client.verifyIdToken({
@@ -34,31 +58,17 @@ app.get('/status', async (req, res) => {
       });
       payload = ticket.getPayload();
     } catch (authError) {
-      console.error("Token Validation Failed:", authError.message);
       return res.status(401).json({ error: 'Invalid Token', detail: authError.message });
     }
 
-    // ทำอีเมลให้เป็นตัวพิมพ์เล็กเพื่อให้ตรงกับ Document ID ใน Firestore
     const emailFromToken = payload['email'].toLowerCase().trim();
-    console.log(`กำลังค้นหาข้อมูลสำหรับผู้ใช้: ${emailFromToken}`);
-
-    // 3. ดึงข้อมูลจาก Collection 'users' ใน meddb
-    // ตรวจสอบว่า Service Account มีสิทธิ์ Cloud Datastore User ในฐานข้อมูล meddb แล้ว
     const userDoc = await db.collection('users').doc(emailFromToken).get();
 
     if (!userDoc.exists) {
-      console.log(`ไม่พบข้อมูลผู้ใช้: ${emailFromToken} ในฐานข้อมูล meddb`);
-      return res.status(404).json({ 
-        error: 'User not found', 
-        name: 'ไม่มีชื่อในระบบ', 
-        role: 'N/A' 
-      });
+      return res.status(404).json({ error: 'User not found', name: 'ไม่มีชื่อในระบบ', role: 'N/A' });
     }
 
     const userData = userDoc.data();
-    console.log("ดึงข้อมูลสำเร็จ:", userData.name);
-    
-    // 4. ส่งค่ากลับไปยัง WinForms
     res.json({ 
       status: 'OK', 
       name: userData.name || 'Unknown', 
@@ -67,17 +77,11 @@ app.get('/status', async (req, res) => {
     });
 
   } catch (error) {
-    // กรณีเกิด PERMISSION_DENIED จะมาตกที่นี่
     console.error("Firestore Error:", error.message);
-    res.status(500).json({ 
-      error: 'Internal Server Error (Database)', 
-      detail: error.message 
-    });
+    res.status(500).json({ error: 'Internal Server Error', detail: error.message });
   }
 });
 
-
-// Cloud Run จะใช้ Port จาก Environment Variable เสมอ
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`API Server กำลังทำงานที่ Port ${PORT} (Database: meddb)`);
