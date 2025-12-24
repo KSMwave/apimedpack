@@ -5,42 +5,49 @@ import { OAuth2Client } from 'google-auth-library';
 const app = express();
 app.use(express.json());
 
-// 1. ตั้งค่าการเชื่อมต่อฐานข้อมูล meddb
 const db = new Firestore({
   projectId: 'bamboo-depth-472206-f1',
   databaseId: 'meddb'
 });
 
-// 2. ตั้งค่า OAuth สำหรับมาตรฐานองค์กร (ย้ายความลับมาไว้บน Server)
-// แนะนำให้ตั้งค่าเหล่านี้ใน Cloud Run Environment Variables
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '887088631874-7fq209rkrq56ndak82cmiejl6tdp94h5.apps.googleusercontent.com';
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET; // ห้ามใส่ค่าตรงๆ ในโค้ด
-const REDIRECT_URI = 'https://apimedpackv1-887088631874.southamerica-west1.run.app/auth/google/callback';
-
-const oAuth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
-
-// Endpoint เดิมสำหรับตรวจสอบสถานะและดึงข้อมูล User
+const client = new OAuth2Client();
+const CLIENT_ID = '887088631874-ld8c3idr9qcmts2cllus42d8gt8dkr8d.apps.googleusercontent.com';
+/*-------------------------------
+status role
+-------------------------------*/
 app.get('/status', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log("ไม่มี Token ส่งมาใน Header");
       return res.status(401).json({ error: 'Unauthorized: Missing Token' });
     }
 
     const idToken = authHeader.split(' ')[1];
 
-    // ตรวจสอบ Token กับ Google
-    const ticket = await oAuth2Client.verifyIdToken({
-      idToken: idToken,
-      audience: CLIENT_ID,
-    });
-    const payload = ticket.getPayload();
-    const emailFromToken = payload['email'].toLowerCase().trim();
+    // 2. ตรวจสอบ Token กับ Google
+    let payload;
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken: idToken,
+        audience: CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch (authError) {
+      console.error("Token Validation Failed:", authError.message);
+      return res.status(401).json({ error: 'Invalid Token', detail: authError.message });
+    }
 
-    // ดึงข้อมูลจาก Firestore
+    // ทำอีเมลให้เป็นตัวพิมพ์เล็กเพื่อให้ตรงกับ Document ID ใน Firestore
+    const emailFromToken = payload['email'].toLowerCase().trim();
+    console.log(`กำลังค้นหาข้อมูลสำหรับผู้ใช้: ${emailFromToken}`);
+
+    // 3. ดึงข้อมูลจาก Collection 'users' ใน meddb
+    // ตรวจสอบว่า Service Account มีสิทธิ์ Cloud Datastore User ในฐานข้อมูล meddb แล้ว
     const userDoc = await db.collection('users').doc(emailFromToken).get();
 
     if (!userDoc.exists) {
+      console.log(`ไม่พบข้อมูลผู้ใช้: ${emailFromToken} ในฐานข้อมูล meddb`);
       return res.status(404).json({ 
         error: 'User not found', 
         name: 'ไม่มีชื่อในระบบ', 
@@ -49,6 +56,9 @@ app.get('/status', async (req, res) => {
     }
 
     const userData = userDoc.data();
+    console.log("ดึงข้อมูลสำเร็จ:", userData.name);
+    
+    // 4. ส่งค่ากลับไปยัง WinForms
     res.json({ 
       status: 'OK', 
       name: userData.name || 'Unknown', 
@@ -57,42 +67,18 @@ app.get('/status', async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Auth/Firestore Error:", error.message);
-    res.status(500).json({ error: 'Internal Server Error', detail: error.message });
+    // กรณีเกิด PERMISSION_DENIED จะมาตกที่นี่
+    console.error("Firestore Error:", error.message);
+    res.status(500).json({ 
+      error: 'Internal Server Error (Database)', 
+      detail: error.message 
+    });
   }
 });
 
-// 3. Endpoint ใหม่สำหรับจัดการการ Redirect จาก Google (Web Server Flow)
-app.get('/auth/google/callback', async (req, res) => {
-  try {
-    const { code } = req.query; // ได้รับ Auth Code จาก Google Browser
-    
-    if (!code) {
-      return res.status(400).send('Missing authorization code');
-    }
 
-    // นำ Code ไปแลกเป็น Tokens (ใช้ Client Secret ที่อยู่บน Server นี้)
-    const { tokens } = await oAuth2Client.getToken(code);
-    
-    // ส่ง id_token กลับไปแสดงผล (หรือส่งกลับไปที่ WinForms ตามวิธีที่ออกแบบไว้)
-    res.send(`
-      <html>
-        <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
-          <h1 style="color: #28a745;">Login Success!</h1>
-          <p>เข้าสู่ระบบสำเร็จ คุณสามารถคัดลอก Token นี้ไปใช้ในแอป หรือปิดหน้าต่างนี้ได้เลย</p>
-          <textarea style="width: 80%; height: 100px; padding: 10px;">${tokens.id_token}</textarea>
-          <br><br>
-          <button onclick="window.close()">ปิดหน้าต่างนี้</button>
-        </body>
-      </html>
-    `);
-  } catch (error) {
-    console.error("Exchange Token Error:", error.message);
-    res.status(500).send("Authentication Failed: " + error.message);
-  }
-});
-
+// Cloud Run จะใช้ Port จาก Environment Variable เสมอ
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT} (Database: meddb)`);
+  console.log(`API Server กำลังทำงานที่ Port ${PORT} (Database: meddb)`);
 });
