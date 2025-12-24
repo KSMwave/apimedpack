@@ -19,22 +19,26 @@ const CLIENT_ID = '887088631874-ld8c3idr9qcmts2cllus42d8gt8dkr8d.apps.googleuser
  */
 app.get('/check-email', async (req, res) => {
   try {
-    const email = req.query.email;
+    let email = req.query.email;
     if (!email) {
-      return res.status(400).json({ error: 'Email parameter is required' });
+      return res.status(400).json({ error: 'Email is required' });
     }
 
+    // ปรับให้เป็นตัวพิมพ์เล็กและตัดช่องว่างหน้า/หลังออก
     const emailSearch = email.toLowerCase().trim();
+    
+    // ค้นหาใน Firestore
     const userDoc = await db.collection('users').doc(emailSearch).get();
 
     if (userDoc.exists) {
-      return res.json({ allowed: true, message: 'User found' });
+      return res.json({ allowed: true });
     } else {
-      return res.status(404).json({ allowed: false, error: 'User not registered' });
+      // ส่ง Log ออกมาที่ Cloud Run Console เพื่อดูว่าโปรแกรมพยายามหาคำว่าอะไร
+      console.log(`ตรวจสอบไม่พบเมล: [${emailSearch}]`); 
+      return res.status(404).json({ allowed: false });
     }
   } catch (error) {
-    console.error("Check Email Error:", error.message);
-    res.status(500).json({ error: 'Database check failed' });
+    res.status(500).json({ error: error.message });
   }
 });
 
