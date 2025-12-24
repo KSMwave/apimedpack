@@ -13,7 +13,7 @@ const db = new Firestore({
 
 // 2. ตั้งค่า OAuth สำหรับมาตรฐานองค์กร (ย้ายความลับมาไว้บน Server)
 // แนะนำให้ตั้งค่าเหล่านี้ใน Cloud Run Environment Variables
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '887088631874-ld8c3idr9qcmts2cllus42d8gt8dkr8d.apps.googleusercontent.com';
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '887088631874-7fq209rkrq56ndak82cmiejl6tdp94h5.apps.googleusercontent.com';
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET; // ห้ามใส่ค่าตรงๆ ในโค้ด
 const REDIRECT_URI = 'https://apimedpackv1-887088631874.southamerica-west1.run.app/auth/google/callback';
 
